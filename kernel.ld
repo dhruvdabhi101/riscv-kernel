@@ -4,12 +4,12 @@ SECTIONS {
       . = 0x80200000;
 
       .text :{
-        KEEP(*.(.text.boot));
+        KEEP(*(.text.boot));
         *(.text .text.*);
       }
 
       .rodata : ALIGN(4) {
-          *.(.rodata .rodata.*);
+          *(.rodata .rodata.*);
       }
 
       .data : ALIGN(4) {
@@ -23,6 +23,6 @@ SECTIONS {
       }
 
       . = ALIGN(4);
-      . += 128 + 1024; /* 128 KB */
+      . += 128 * 1024; /* 128 KB */
       __stack_top = .;
 }

@@ -4,6 +4,45 @@
 extern char __bss[], __bss_end[], __stack_top[];
 extern char __free_ram[], __free_ram_end[];
 
+struct process procs[PROCS_MAX];
+
+struct process *create_process(uint32_t pc) {
+  // unused pcb
+  struct process *proc = NULL;
+  int i;
+  for(i = 0; i < PROCS_MAX; i++) {
+    if(procs[i].state == PROC_UNUSED) {
+      proc = &procs[i];
+      break;
+    }
+  }
+  if(!proc) {
+    PANIC("no free process slots");
+  }
+
+  // stack callee saved registers.
+  uint32_t *sp = (uint32_t *)&proc->stack[sizeof(proc->stack)];
+  *--sp = 0; // s11
+  *--sp = 0; // s10
+  *--sp = 0; // s9
+  *--sp = 0; // s8
+  *--sp = 0; // s7
+  *--sp = 0; // s6
+  *--sp = 0; // s5
+  *--sp = 0; // s4
+  *--sp = 0; // s3
+  *--sp = 0; // s2
+  *--sp = 0; // s1
+  *--sp = 0; // s0
+  *--sp = (uint32_t) pc; // ra
+
+  // Initialize fields
+  proc->pid = i + 1;
+  proc->state = PROC_RUNNABLE;
+  proc->sp = (uint32_t) sp;
+  return proc;
+}
+
 /**
  * using *bump allocator/linear allocator*
  * alloc pages
@@ -152,7 +191,7 @@ __attribute__((naked)) void switch_context(uint32_t *prev_sp,
 
       // switch the stack pointer
       "sw sp, (a0)\n" // *prev_sp = sp;
-      "sw sp, (a1)\n"
+      "lw sp, (a1)\n"
 
       "lw ra,  0  * 4(sp)\n" // Restore callee-saved registers only
       "lw s0,  1  * 4(sp)\n"
@@ -172,14 +211,45 @@ __attribute__((naked)) void switch_context(uint32_t *prev_sp,
   );
 }
 
+void delay(void) {
+  for(int i = 0; i < 30000000; i++) {
+    __asm__ __volatile__ ("nop");
+  }
+}
+
+struct process *proc_a;
+struct process *proc_b;
+
+void proc_a_entry(void) {
+  printf("starting process A\n");
+  while(1) {
+    putchar('A');
+    switch_context(&proc_a->sp, &proc_b->sp);
+    delay();
+  }
+}
+
+void proc_b_entry(void) {
+  printf("starting process B\n");
+  while(1) {
+    putchar('B');
+    switch_context(&proc_b->sp, &proc_a->sp);
+    delay();
+  }
+}
+
 void kernel_main(void) {
   // Initialize BSS section
   memset(__bss, 0, __bss_end - __bss);
 
-  paddr_t paddr0 = alloc_pages(2);
-  paddr_t paddr1 = alloc_pages(1);
-  printf("alloc pages test: paadr0 = %x\n", paddr0);
-  printf("alloc pages test: paadr1 = %x\n", paddr1);
+  WRITE_CSR(stvec, (uint32_t) kernel_entry);
+
+  proc_a = create_process((uint32_t) proc_a_entry);
+  proc_b = create_process((uint32_t) proc_b_entry);
+  proc_a_entry();
+
+  PANIC("unreachable code\n");
+
   for (;;) {
     __asm__ __volatile__("wfi");
   }

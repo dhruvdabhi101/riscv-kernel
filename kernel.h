@@ -69,5 +69,13 @@ struct process {
   int pid; // process ID
   int state; // either PROC_UNUSED or PROC_RUNNABLE
   vaddr_t sp; // stack pointer
+  uint32_t *page_table;
   uint8_t stack[8192]; // kernel stack
 };
+
+#define SATP_SV32 (1u << 31)
+#define PAGE_V (1 << 0) //valid
+#define PAGE_R (1 << 1) // read
+#define PAGE_W (1 << 2) // write
+#define PAGE_X (1 << 3) // executable
+#define PAGE_U (1 << 4) // user
